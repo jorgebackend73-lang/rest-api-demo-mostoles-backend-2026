@@ -59,6 +59,7 @@ public class WebSecurityConfig {
 
     }
 
+    @Bean 
     AuthenticationManager authenticationManager (AuthenticationConfiguration authConfig) {
 
         return  authConfig.getAuthenticationManager();
