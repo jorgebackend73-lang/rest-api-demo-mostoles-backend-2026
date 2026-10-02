@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
+import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.Sort;
@@ -31,15 +32,16 @@ import org.springframework.test.web.servlet.ResultActions;
 import com.example.entities.Presentation;
 import com.example.entities.Product;
 import com.example.services.ProductService;
+import com.example.spring_security_jwt.payload.request.LogginRequest;
 import com.example.utilities.FileDownloadUtil;
 import com.example.utilities.FileUploadUtil;
 import com.example.utilities.FileUtil;
 
-import tools.jackson.core.JacksonException;
+
 import tools.jackson.databind.ObjectMapper;
 
-@WebMvcTest(ProductController.class)
-
+// @WebMvcTest(ProductController.class)
+@SpringBootTest // como comentamos levantamos contexto spring completo.
 /**
  * La anotacion anterior es la recomendada para implementar test de Integracion,
  * a la capa de controladores que conlleva la realizacion de peticiones HTTP.
@@ -87,7 +89,19 @@ class ProductControllerTest {
 	
 	@BeforeEach
 	void setUp() {
+
+		/*Necesitamos obtener un token valido para presentarlo en cada test */
 		
+		LogginRequest logginRequest = LogginRequest.builder()
+			.username("admin1")
+			.password("Temp2026$$")
+			.build();
+
+		/* Objeto LogginRequest ha de ser convertido a .json. Usaremos componente ObjectMapper
+		de la biblio jackson para convertir a un string en formato .json */
+
+		String jsonLogginRequest = objectMapper.writeValueAsString(logginRequest);
+
 		presentation1 = Presentation.builder()
 				.name("decenas")
 				.description("Por decenas")
