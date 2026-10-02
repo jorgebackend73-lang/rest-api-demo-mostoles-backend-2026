@@ -36,16 +36,25 @@ public class JwtUtils {
         // Casteo y todo
         UserDetailsImpl userPrincipal = (UserDetailsImpl) authentication.getPrincipal();
 
+        // [IA] Cambio mio (esto es lo mas importante de este metodo). Antes se
+        // escribia "Jwts.builder()....compact();" SIN(return, y en la linea
+        // siguiente habia un "return null". Es decir: se construia el token y
+        // acto seguido se tiraba a la basura. jjwt NO muta el builder: compact()
+        // DEVUELVE el String del token, y ese valor hay que devolver.
+        // Sin esto, /signin contestaba 200 pero con "token": null.
+        //
+        // Practica: cuando un metodo "fabrica" algo (un token, un id, un objeto),
+        // casi siempre hay un return con el valor que produce la cadena. Si
+        // compila y devuelve null, casi siempre se ha olvidado devolverlo.
+        //
         // Creamos token. Partes Token: cabecera, key, claims(lo o quien dices que eres).
-        Jwts.builder()
+        return Jwts.builder()
             // claims:
             .subject(userPrincipal.getUsername())
             .issuedAt(new Date())
             .expiration(new Date((new Date()).getTime() + jwtExpirationMs))
             .signWith(key())
             .compact();
-
-        return null;
     }
 
     // método para crear la key de java security

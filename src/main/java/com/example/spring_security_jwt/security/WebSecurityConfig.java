@@ -79,7 +79,18 @@ public class WebSecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             // lugar de la página web donde se puede acceder sin seguridad, para dar de alta a un usuario
             // y/o autenticarse. Pero a partir de aquí tienes que estar autenticado y securizado.
-            .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**").permitAll()
+            // [IA] Cambio mio: he añadido "/error" a la lista de permitAll().
+            // Motivo: cuando un controlador falla (400, 403, 404...), Spring
+            // reenvia la peticion a /error para que pinte el error. Con
+            // anyRequest().authenticated() ese /error volvia a pasar por esta
+            // cadena de filtros, y como AuthTokenFilter es un OncePerRequestFilter
+            // (que por defecto NO se ejecuta en los reenvios ERROR) no releia el
+            // token: el SecurityContext llegaba vacío y la respuesta terminaba
+            // siendo 401 SIEMPRE. Efecto: todos los errores reales (400, 403, 404)
+            // llegaban a Postman camuflados como 401, y por eso costs
+            // imposible depurar. Autorizar /error deja que cada error conserve
+            // su codigo verdadero. Es el patron habitual en Spring Boot + Security.
+            .authorizeHttpRequests(auth -> auth.requestMatchers("/api/auth/**", "/error").permitAll()
             // a partir de aquí 
             .anyRequest().authenticated());
             

@@ -6,6 +6,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
@@ -65,6 +67,11 @@ import lombok.RequiredArgsConstructor;
 @RequestMapping("/products")
 @RequiredArgsConstructor
 public class ProductController {
+
+	// [IA] Anadido por mi: este controlador no tenia ningun logger, y lo he necesitado
+	// para poder distinguir en consola un 404 (fichero no encontrado) de un 500 (fallo
+	// real de E/S). El patron es el mismo que usas en AuthController.
+	private static final Logger LOGGER = LoggerFactory.getLogger(ProductController.class);
 
 	private final ProductService productService;
 	private final FileUploadUtil fileUploadUtil;
@@ -281,11 +288,23 @@ public class ProductController {
 		try {
 			resource = fileDownloadUtil.getFileAsResource(fileCode);
 		} catch (IOException ioe) {
+			// [IA] No he cambiado la logica de este catch (un fallo real de disco o de
+			// permisos SIEMPRE es un 500, que es lo correcto). Lo que he cambiado es
+			// FileDownloadUtil, para que un fichero que simplemente no existe llegue
+			// hasta el return de abajo como 404 en vez de reventar antes con un 500.
+			// El log lo he anadido yo para poder diagnosticar el fallo real.
+			LOGGER.error("Error de E/S al leer la imagen con codigo {}: {}", fileCode, ioe.getMessage());
 			return ResponseEntity.internalServerError().build();
 		}
 
-		if (resource == null)
+		// [IA] Este if antes era codigo muerto: nunca se cumplia, porque
+		// FileDownloadUtil hacia .findFirst().get() y esa excepcion (NoSuchElementException,
+		// que no es IOException) se escapaba del catch de arriba. Arreglado el util, este
+		// return ya se ejecuta y el 404 es real. Lo he logarithmado yo con el LOGGER.
+		if (resource == null) {
+			LOGGER.warn("No se encuentra ninguna imagen con el codigo: {}", fileCode);
 			return new ResponseEntity<>("Imagen del producto no encontrada ", HttpStatus.NOT_FOUND);
+		}
 		/**
 		 * Si estamos en este punto quiere decir que el fichero (imagen del producto) ha
 		 * sido encontrado y podemos enviarlo como respuesta a la peticion, como un

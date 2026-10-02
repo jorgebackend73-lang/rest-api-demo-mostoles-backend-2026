@@ -1,6 +1,7 @@
 package com.example.spring_security_jwt.controller;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -60,6 +61,28 @@ public class AuthController {
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signupRequest,
             BindingResult validationResults) {
 
+        // [IA] Bloque mio. Explicacion de por que hace falta: cuando pones @Valid
+        // delante de un @RequestBody y ADEMAS un BindingResult a continuacion,
+        // Spring NO lanza excepcion si el JSON es invalido. Se limita a rellenar
+        // validationResults con la lista de errores y sigue metiendo el metodo.
+        // Es decir: el metodo se ejecuta SIEMPRE, y si tu no miras
+        // validationResults, los datos rubbish llegan intactos hasta el save().
+        // Con el ejemplo {"username":"ab","email":"bad","password":"1"} se intentaba
+        // guardar en MySQL y reventaba con DataIntegrityViolationException, o sea
+        // un HTTP 500 feo, en vez de un 400 elegante con el motivo real.
+        //
+        // Regla: si escribes @Valid, tienes que consultar el BindingResult.
+        if (validationResults.hasErrors()) {
+
+            List<String> errores = validationResults.getFieldErrors()
+                    .stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error en los datos recibidos: " + errores));
+        }
+
         // si existe el nombre de usuario hay que confirmarlo y decirlo.
         if (userRepository.existsByUsername(signupRequest.getUsername())) {
 
@@ -94,7 +117,15 @@ public class AuthController {
         } else {
             strRoles.forEach(role -> {
 
-                if (role == "admin") {
+                // [IA] Cambio mio: antes era "if (role == "admin")". Explicacion:
+                // el operador == con dos String NO compara el texto, compara si
+                // son el MISMO objeto en memoria. Solo es true para literales
+                // "administrados" por la JVM. Los String que llegan aqui vienen
+                // deserializados del JSON, y esos no estan administrados, asi que
+                // == era false SIEMPRE y todos los usuarios se registraban como USER
+                // (da igual lo que mandases en "role"). Con equals() se compara
+                // el contenido y el rol admin ya se concede bien.
+                if ("admin".equals(role)) {
                     Role adminRole = roleRepository.findByName(ERole.ROLE_ADMIN)
                             .orElseThrow(() -> new RuntimeException("Error: Role is not foun!!!"));
 
@@ -145,7 +176,22 @@ public class AuthController {
     // ResponseEntity de cualquier cosa <?>
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LogginRequest logginRequest, BindingResult result) {
 
-        // TODO. Validar el JSON recibido en el cuerpo de la peticion.
+        // [IA] Este bloque sustituye a tu "// TODO. Validar el JSON recibido...".
+        // Funciona igual que el de signup y por el mismo motivo: el @Valid de la
+        // firma no lanza nada, solo acumula los fallos en "result". Si no se mira,
+        // un cuerpo vacio ({}), o sin password, llega con null hasta el
+        // authenticationManager y la peticion acaba en un 500 sin explicar nada.
+        if (result.hasErrors()) {
+
+            List<String> errores = result.getFieldErrors()
+                    .stream()
+                    .map(error -> error.getField() + ": " + error.getDefaultMessage())
+                    .collect(Collectors.toList());
+
+            return ResponseEntity.badRequest()
+                    .body(new MessageResponse("Error en los datos recibidos: " + errores));
+        }
+
         Authentication authentication = authenticationManager
                 .authenticate(new UsernamePasswordAuthenticationToken(logginRequest.getUsername(),
                         logginRequest.getPassword()));
