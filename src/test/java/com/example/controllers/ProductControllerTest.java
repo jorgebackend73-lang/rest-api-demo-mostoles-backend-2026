@@ -6,6 +6,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.hamcrest.CoreMatchers.is;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.print;
 
@@ -13,6 +14,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.json.JSONObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,13 +23,14 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase.Replace;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.assertj.MvcTestResult;
 
 import com.example.entities.Presentation;
 import com.example.entities.Product;
@@ -86,21 +89,45 @@ class ProductControllerTest {
 	List<Product> products = new ArrayList<>();
 	Presentation presentation1, presentation2;
 	Product product1, product2;
+
+	String token; // declaramos variable token de tipo string
 	
 	@BeforeEach
-	void setUp() {
+	void setUp() throws Exception {
 
 		/*Necesitamos obtener un token valido para presentarlo en cada test */
 		
 		LogginRequest logginRequest = LogginRequest.builder()
 			.username("admin1")
-			.password("Temp2026$$")
+			.password("Temp2026$$##")
 			.build();
 
 		/* Objeto LogginRequest ha de ser convertido a .json. Usaremos componente ObjectMapper
 		de la biblio jackson para convertir a un string en formato .json */
 
 		String jsonLogginRequest = objectMapper.writeValueAsString(logginRequest);
+
+		//Hay que hacer a mano lo que hace el postman petición post a endpoint. 
+		// Este está en AuthController
+		ResultActions resultActions = this.mockMvc.perform(post("/api/auth/signin")
+				.contentType(MediaType.APPLICATION_JSON) // tipo de contenido MediaType
+				.content(jsonLogginRequest)); // convertido logginRequest a formato json
+
+		// Extraemos el token de la respuesta a la request anterior
+
+		MvcResult mvcResult = resultActions.andDo(print()).andReturn();
+
+		String contentAsString = mvcResult.getResponse().getContentAsString(); // lo guardamos com una cadena 
+
+		JSONObject jsonObject = new JSONObject(contentAsString);
+
+		this.token = "Bearer " + jsonObject.getString("token"); // cogemos de jsonObject la clave token
+		// lo mismo que hacemos con postman de forma manual aquí lo hacemos de forma programática.
+
+		// token hasta aquí
+		// -----------------------------------------------------------------------------------
+
+
 
 		presentation1 = Presentation.builder()
 				.name("decenas")
@@ -119,8 +146,7 @@ class ProductControllerTest {
 				.stock(1900)
 				.productImage(null)
 				.presentation(presentation1)
-				.build();
-		
+				.build();		
 			
 		product2 = Product.builder()
 				.name("Frigorifico")
@@ -149,7 +175,9 @@ class ProductControllerTest {
 
 		ResultActions response = mockMvc
 				.perform(get("/products")
-				.accept(MediaType.APPLICATION_JSON));
+				.accept(MediaType.APPLICATION_JSON)
+				.header("Authorization", this.token)); // para meter el token generado en la cabecera
+
 		// then
 
 		response.andExpect(status().isOk()).andDo(print())
@@ -184,7 +212,8 @@ class ProductControllerTest {
 				mockMvc
 				    .perform(multipart("/products")
 					.file(bytesArrayProduct)
-					.file("file", null))			    
+					.file("file", null)
+					.header("Authorization", this.token))			    
 				    	.andDo(print())
 				    	.andExpect(status().isCreated())
 				    	.andExpect(jsonPath("$.product.name",
@@ -213,7 +242,8 @@ class ProductControllerTest {
 		
 		// when
 		mockMvc.perform(get("/products/{id}",
-				productId))
+				productId)
+				.header("Authorization", this.token))
 				.andDo(print())
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$['producto encontrado: '].name",
@@ -229,7 +259,8 @@ class ProductControllerTest {
 		
 		// when
 		
-		mockMvc.perform(get("/products/{id}", 20))
+		mockMvc.perform(get("/products/{id}", 20)
+			.header("Authorization", this.token))
 			.andDo(print())
 			.andExpect(status().isNotFound());
 	}
@@ -259,7 +290,8 @@ class ProductControllerTest {
                             return request;
                         })
                         .file("image", null)
-                        .file(bytesArrayProduct));
+                        .file(bytesArrayProduct)
+						.header("Authorization", this.token));
 
         //then
         response.andDo(print())
@@ -283,7 +315,8 @@ class ProductControllerTest {
         doNothing().when(productService).delete(product1);
 
         //when
-        mockMvc.perform(delete("/products/{id}", ProductId))
+        mockMvc.perform(delete("/products/{id}", ProductId)
+				.header("Authorization", this.token))
                 .andExpect(status().isOk());
 
     }
