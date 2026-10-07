@@ -14,6 +14,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.hateoas.EntityModel;
+import org.springframework.hateoas.Link;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -43,6 +45,8 @@ import com.example.utilities.FileUtil;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
+import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 /**
  * La anotacion @RestController es para que todos los metodos que van a ser
@@ -154,10 +158,22 @@ public class ProductController {
 
 		try {
 			Product product = productService.findById(product_id);
+
+			// Vamos a agregar enlaces hypermedia a la respuesta.
+			// Creamos enlace a si mismo, al propio método.
+			Link selfLink = linkTo(methodOn(ProductController.class).
+				 findProductById(product_id)).withSelfRel(); 
+
+			// Creamos enlace adicional a la lista completa de productos.
+			Link allProductsLink = linkTo(methodOn(ProductController.class)
+					.dameProductos(3, 3)).withRel("all-products");
+
 			if (product != null) {
 				String successMessage = "El producto con id " + product_id + " ha sido encontrado";
 				responseAsMap.put("mensaje todo OK: ", successMessage);
 				responseAsMap.put("producto encontrado: ", product);
+				responseAsMap.put("enlace al propio método", selfLink); // El propio enlace
+				responseAsMap.put("link para recuperar todos los productos", allProductsLink);
 				responseEntity = new ResponseEntity<Map<String, Object>>(responseAsMap, HttpStatus.OK);
 			} else {
 				String failureMessage = "No ha sido encontrado ningun producto con id: " + product_id;
